@@ -3,7 +3,7 @@ import json
 import time
 import base64
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import threading
 import os
 import math
@@ -1556,6 +1556,15 @@ class Seestar:
             is_LP = [False, False, True, False, False, False, True, False]
             num_segments = len(spacing)
 
+            end_local_time = params.get("end_local_time")
+            end_deadline = None
+            if end_local_time:
+                h, m = map(int, end_local_time.split(":"))
+                now = datetime.now()
+                end_deadline = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                if end_deadline <= now:
+                    end_deadline += timedelta(days=1)
+
             parsed_coord = Util.parse_coordinate(is_j2000, center_RA, center_Dec)
             center_RA = parsed_coord.ra.hour
             center_Dec = parsed_coord.dec.deg
@@ -1625,6 +1634,13 @@ class Seestar:
                         return
                     elif self.schedule["is_skip_requested"]:
                         self.logger.info("requested to skip. Stopping spectra_thread.")
+                        return
+                    elif end_deadline and datetime.now() >= end_deadline:
+                        self.logger.info(
+                            "End time %s reached. Stopping spectra item.",
+                            end_local_time,
+                        )
+                        self.stop_stack()
                         return
                     time_remaining -= count_down
                     time.sleep(10)
@@ -1715,8 +1731,16 @@ class Seestar:
         num_tries,
         retry_wait_s,
         stack_type="DeepSky",
+        end_local_time=None,
     ):
         try:
+            end_deadline = None
+            if end_local_time:
+                h, m = map(int, end_local_time.split(":"))
+                now = datetime.now()
+                end_deadline = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                if end_deadline <= now:
+                    end_deadline += timedelta(days=1)
             spacing_result = Util.mosaic_next_center_spacing(
                 center_RA, center_Dec, overlap_percent
             )
@@ -1903,6 +1927,13 @@ class Seestar:
                                 "current mosaic stacking was requested to skip. Stopping at current mosaic."
                             )
                             return
+                        elif end_deadline and datetime.now() >= end_deadline:
+                            self.logger.info(
+                                "End time %s reached. Stopping mosaic item.",
+                                end_local_time,
+                            )
+                            self.stop_stack()
+                            return
 
                         time.sleep(5)
                         panel_remaining_time_s -= 5
@@ -1953,6 +1984,7 @@ class Seestar:
         num_tries = params.get("num_tries", 1)
         retry_wait_s = params.get("retry_wait_s", 300)
         stack_type = params.get("stack_type", "DeepSky")
+        end_local_time = params.get("end_local_time")
 
         # verify mosaic pattern
         if nRA < 1 or nDec < 0:
@@ -2020,6 +2052,7 @@ class Seestar:
                 num_tries,
                 retry_wait_s,
                 stack_type,
+                end_local_time,
             )
         )
         self.mosaic_thread.name = f"MosaicThread:{self.device_name}"
