@@ -341,7 +341,7 @@ class commandstring:
 @before(PreProcessRequest(maxdev))
 class connected:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        is_conn = seestar_dev[devnum].is_connected
+        is_conn = devnum in seestar_dev and seestar_dev[devnum].is_connected
         resp.text = PropertyResponse(is_conn, req).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
@@ -398,7 +398,7 @@ class supportedactions:
 @before(PreProcessRequest(maxdev))
 class alignmentmode:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -419,7 +419,7 @@ class alignmentmode:
 @before(PreProcessRequest(maxdev))
 class altitude:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -438,7 +438,7 @@ class altitude:
 @before(PreProcessRequest(maxdev))
 class aperturearea:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -459,7 +459,7 @@ class aperturearea:
 @before(PreProcessRequest(maxdev))
 class aperturediameter:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -480,7 +480,7 @@ class aperturediameter:
 @before(PreProcessRequest(maxdev))
 class athome:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -499,7 +499,7 @@ class athome:
 @before(PreProcessRequest(maxdev))
 class atpark:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -518,7 +518,7 @@ class atpark:
 @before(PreProcessRequest(maxdev))
 class azimuth:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -537,7 +537,7 @@ class azimuth:
 @before(PreProcessRequest(maxdev))
 class canfindhome:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -556,7 +556,7 @@ class canfindhome:
 @before(PreProcessRequest(maxdev))
 class canpark:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -575,7 +575,7 @@ class canpark:
 @before(PreProcessRequest(maxdev))
 class canpulseguide:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -596,7 +596,7 @@ class canpulseguide:
 @before(PreProcessRequest(maxdev))
 class cansetdeclinationrate:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -617,7 +617,7 @@ class cansetdeclinationrate:
 @before(PreProcessRequest(maxdev))
 class cansetguiderates:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -638,7 +638,7 @@ class cansetguiderates:
 @before(PreProcessRequest(maxdev))
 class cansetpark:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -657,7 +657,7 @@ class cansetpark:
 @before(PreProcessRequest(maxdev))
 class cansetpierside:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -678,7 +678,7 @@ class cansetpierside:
 @before(PreProcessRequest(maxdev))
 class cansetrightascensionrate:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -701,7 +701,7 @@ class cansetrightascensionrate:
 @before(PreProcessRequest(maxdev))
 class cansettracking:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -722,7 +722,7 @@ class cansettracking:
 @before(PreProcessRequest(maxdev))
 class canslew:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -741,7 +741,7 @@ class canslew:
 @before(PreProcessRequest(maxdev))
 class canslewaltaz:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -762,7 +762,7 @@ class canslewaltaz:
 @before(PreProcessRequest(maxdev))
 class canslewaltazasync:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -783,7 +783,7 @@ class canslewaltazasync:
 @before(PreProcessRequest(maxdev))
 class canslewasync:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -804,7 +804,7 @@ class canslewasync:
 @before(PreProcessRequest(maxdev))
 class cansync:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -823,7 +823,7 @@ class cansync:
 @before(PreProcessRequest(maxdev))
 class cansyncaltaz:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -844,7 +844,7 @@ class cansyncaltaz:
 @before(PreProcessRequest(maxdev))
 class canunpark:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -863,7 +863,7 @@ class canunpark:
 @before(PreProcessRequest(maxdev))
 class declination:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -882,7 +882,7 @@ class declination:
 @before(PreProcessRequest(maxdev))
 class declinationrate:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -900,7 +900,7 @@ class declinationrate:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -933,7 +933,7 @@ class declinationrate:
 @before(PreProcessRequest(maxdev))
 class doesrefraction:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -951,7 +951,7 @@ class doesrefraction:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -975,7 +975,7 @@ class doesrefraction:
 @before(PreProcessRequest(maxdev))
 class equatorialsystem:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -996,7 +996,7 @@ class equatorialsystem:
 @before(PreProcessRequest(maxdev))
 class focallength:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1015,7 +1015,7 @@ class focallength:
 @before(PreProcessRequest(maxdev))
 class guideratedeclination:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1033,7 +1033,7 @@ class guideratedeclination:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1067,7 +1067,7 @@ class guideratedeclination:
 @before(PreProcessRequest(maxdev))
 class guideraterightascension:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1087,7 +1087,7 @@ class guideraterightascension:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1123,7 +1123,7 @@ class guideraterightascension:
 @before(PreProcessRequest(maxdev))
 class ispulseguiding:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1165,7 +1165,7 @@ class rightascension:
 @before(PreProcessRequest(maxdev))
 class rightascensionrate:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not connected.")
             ).json
@@ -1183,7 +1183,7 @@ class rightascensionrate:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1217,7 +1217,7 @@ class rightascensionrate:
 @before(PreProcessRequest(maxdev))
 class sideofpier:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1233,7 +1233,7 @@ class sideofpier:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1266,7 +1266,7 @@ class sideofpier:
 @before(PreProcessRequest(maxdev))
 class siderealtime:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1287,7 +1287,7 @@ class siderealtime:
 @before(PreProcessRequest(maxdev))
 class siteelevation:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1305,7 +1305,7 @@ class siteelevation:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1336,7 +1336,7 @@ class siteelevation:
 @before(PreProcessRequest(maxdev))
 class sitelatitude:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1363,7 +1363,7 @@ class sitelatitude:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1396,7 +1396,7 @@ class sitelatitude:
 @before(PreProcessRequest(maxdev))
 class sitelongitude:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1423,7 +1423,7 @@ class sitelongitude:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1456,7 +1456,7 @@ class sitelongitude:
 @before(PreProcessRequest(maxdev))
 class slewing:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1475,7 +1475,7 @@ class slewing:
 @before(PreProcessRequest(maxdev))
 class slewsettletime:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1493,7 +1493,7 @@ class slewsettletime:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1526,7 +1526,7 @@ class slewsettletime:
 @before(PreProcessRequest(maxdev))
 class targetdeclination:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1544,7 +1544,7 @@ class targetdeclination:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1577,7 +1577,7 @@ class targetdeclination:
 @before(PreProcessRequest(maxdev))
 class targetrightascension:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1595,7 +1595,7 @@ class targetrightascension:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1629,7 +1629,7 @@ class targetrightascension:
 @before(PreProcessRequest(maxdev))
 class tracking:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1645,7 +1645,7 @@ class tracking:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1669,7 +1669,7 @@ class tracking:
 @before(PreProcessRequest(maxdev))
 class trackingrate:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1687,7 +1687,7 @@ class trackingrate:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1720,7 +1720,7 @@ class trackingrate:
 @before(PreProcessRequest(maxdev))
 class trackingrates:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1742,7 +1742,7 @@ class trackingrates:
 @before(PreProcessRequest(maxdev))
 class utcdate:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1758,7 +1758,7 @@ class utcdate:
             ).json
 
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1789,7 +1789,7 @@ class utcdate:
 @before(PreProcessRequest(maxdev))
 class abortslew:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1808,7 +1808,7 @@ class abortslew:
 @before(PreProcessRequest(maxdev))
 class axisrates:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1827,7 +1827,7 @@ class axisrates:
 @before(PreProcessRequest(maxdev))
 class canmoveaxis:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1846,7 +1846,7 @@ class canmoveaxis:
 @before(PreProcessRequest(maxdev))
 class destinationsideofpier:
     def on_get(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1867,7 +1867,7 @@ class destinationsideofpier:
 @before(PreProcessRequest(maxdev))
 class findhome:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1886,7 +1886,7 @@ class findhome:
 @before(PreProcessRequest(maxdev))
 class moveaxis:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1923,7 +1923,7 @@ class moveaxis:
 @before(PreProcessRequest(maxdev))
 class park:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1942,7 +1942,7 @@ class park:
 @before(PreProcessRequest(maxdev))
 class pulseguide:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -1989,7 +1989,7 @@ class pulseguide:
 @before(PreProcessRequest(maxdev))
 class setpark:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2008,7 +2008,7 @@ class setpark:
 @before(PreProcessRequest(maxdev))
 class slewtoaltaz:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2053,7 +2053,7 @@ class slewtoaltaz:
 @before(PreProcessRequest(maxdev))
 class slewtoaltazasync:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2098,7 +2098,7 @@ class slewtoaltazasync:
 @before(PreProcessRequest(maxdev))
 class slewtocoordinates:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2152,7 +2152,7 @@ class slewtocoordinates:
 @before(PreProcessRequest(maxdev))
 class slewtocoordinatesasync:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2209,7 +2209,7 @@ class slewtocoordinatesasync:
 @before(PreProcessRequest(maxdev))
 class slewtotarget:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2235,7 +2235,7 @@ class slewtotarget:
 @before(PreProcessRequest(maxdev))
 class slewtotargetasync:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2261,7 +2261,7 @@ class slewtotargetasync:
 @before(PreProcessRequest(maxdev))
 class synctoaltaz:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2306,7 +2306,7 @@ class synctoaltaz:
 @before(PreProcessRequest(maxdev))
 class synctocoordinates:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2353,7 +2353,7 @@ class synctocoordinates:
 @before(PreProcessRequest(maxdev))
 class synctotarget:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
@@ -2372,7 +2372,7 @@ class synctotarget:
 @before(PreProcessRequest(maxdev))
 class unpark:
     def on_put(self, req: Request, resp: Response, devnum: int):
-        if not seestar_dev[devnum].is_connected:
+        if devnum not in seestar_dev or not seestar_dev[devnum].is_connected:
             resp.text = PropertyResponse(
                 None, req, NotConnectedException("Not Connected.")
             ).json
