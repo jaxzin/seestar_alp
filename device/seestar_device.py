@@ -383,23 +383,40 @@ class Seestar:
         try:
             self.logger.info(f"RECONNECTING {self.device_name}")
 
+            _r0 = time.perf_counter()
             self.disconnect()
+            self.logger.info(
+                f"TIMING [{self.device_name}] reconnect.disconnect: {time.perf_counter() - _r0:.3f}s"
+            )
 
+            _r1 = time.perf_counter()
             # send a udp message to satisfy seestar's guest mode to gain control properly
             self.send_udp_intro()
+            self.logger.info(
+                f"TIMING [{self.device_name}] reconnect.udp_intro: {time.perf_counter() - _r1:.3f}s"
+            )
 
             # note: the below isn't thread safe!  (Reconnect can be called from different threads.)
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.s.settimeout(
+            _timeout = (
                 connect_timeout if connect_timeout is not None else Config.timeout
             )
+            self.s.settimeout(_timeout)
+            _r2 = time.perf_counter()
             self.s.connect((self.host, self.port))
+            self.logger.info(
+                f"TIMING [{self.device_name}] reconnect.tcp_connect (timeout={_timeout}s): {time.perf_counter() - _r2:.3f}s"
+            )
             # self.s.settimeout(None)
             self.is_connected = True
             # If an interop PEM key is configured, attempt firmware 7.18+ authentication
             try:
                 if getattr(Config, "seestar_interop_pem", ""):
+                    _r3 = time.perf_counter()
                     ok = self.authenticate()
+                    self.logger.info(
+                        f"TIMING [{self.device_name}] reconnect.authenticate: {time.perf_counter() - _r3:.3f}s"
+                    )
                     if not ok:
                         self.logger.warning(
                             "Authentication failed after connect; closing socket"
