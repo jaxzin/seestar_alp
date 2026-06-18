@@ -217,7 +217,9 @@ class Seestar:
             resp = self.send_message_param_sync({"method": "get_verify_str"})
             challenge_str = ""
             if isinstance(resp, dict):
-                challenge_str = resp.get("result", {}).get("str", "")
+                result = resp.get("result", {})
+                if isinstance(result, dict):
+                    challenge_str = result.get("str", "")
 
             if not challenge_str:
                 self.logger.warning(f"No challenge string received: {resp}")
