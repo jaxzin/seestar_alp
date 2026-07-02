@@ -154,6 +154,7 @@ class Seestar:
         self.event_queue = collections.deque(maxlen=20)
         self.eventbus = signal(f"{self.device_name}.eventbus")
         self.is_EQ_mode: bool = False  # updated from device state on startup
+        self.is_EQ_mode_confirmed: bool = False  # True once read from the device
         # self.trace = MessageTrace(self.device_num, self.port)
 
     def _load_interop_pem(self) -> None:
@@ -688,10 +689,11 @@ class Seestar:
         # get_device_state during the startup sequence (is_EQ_mode). Inject it
         # here, like the scheduler block, so pollers get it without a blocking
         # RPC to the scope (get_device_state times out during imaging).
-        if "mount" not in self.event_state:
-            self.event_state["mount"] = {}
-        self.event_state["mount"]["Event"] = "Mount"
-        self.event_state["mount"]["equ_mode"] = self.is_EQ_mode
+        if self.is_EQ_mode_confirmed:
+            if "mount" not in self.event_state:
+                self.event_state["mount"] = {}
+            self.event_state["mount"]["Event"] = "Mount"
+            self.event_state["mount"]["equ_mode"] = self.is_EQ_mode
 
         if "3PPA" in self.event_state:
             self.event_state["3PPA"]["eq_offset_alt"] = self.cur_pa_error_y
@@ -1308,6 +1310,7 @@ class Seestar:
                 self.is_EQ_mode = response["result"]["mount"].get(
                     "equ_mode", self.is_EQ_mode
                 )
+                self.is_EQ_mode_confirmed = True
                 self.logger.info(f"EQ mode from device state: {self.is_EQ_mode}")
 
             if do_3PPA and not self.is_EQ_mode:

@@ -468,6 +468,10 @@ def test_get_event_state_and_is_client_master(seestar):
 
 
 def test_get_event_state_injects_mount_equ_mode(seestar):
+    out = seestar.get_event_state()
+    assert "mount" not in out["result"]  # unconfirmed -> absent, never a default
+
+    seestar.is_EQ_mode_confirmed = True
     seestar.is_EQ_mode = True
     out = seestar.get_event_state()
     assert out["result"]["mount"]["Event"] == "Mount"
