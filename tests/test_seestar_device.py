@@ -467,6 +467,18 @@ def test_get_event_state_and_is_client_master(seestar):
     assert seestar.is_client_master() is False
 
 
+def test_send_message_param_sync_confirms_eq_mode_from_device_state(seestar):
+    seestar.response_dict[123] = {
+        "method": "get_device_state",
+        "result": {"mount": {"equ_mode": True}},
+    }
+    seestar.send_message_param = lambda data: 123
+    out = seestar.send_message_param_sync({"method": "get_device_state"})
+    assert out["result"]["mount"]["equ_mode"] is True
+    assert seestar.is_EQ_mode is True
+    assert seestar.is_EQ_mode_confirmed is True
+
+
 def test_get_event_state_injects_mount_equ_mode(seestar):
     out = seestar.get_event_state()
     assert "mount" not in out["result"]  # unconfirmed -> absent, never a default

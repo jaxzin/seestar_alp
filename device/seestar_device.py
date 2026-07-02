@@ -671,7 +671,16 @@ class Seestar:
                     # todo : dump out stats.  last run time on threads, connection status, etc.
             time.sleep(0.5)
         self.logger.debug(f"response is {self.response_dict[cur_cmdid]}")
-        return self.response_dict[cur_cmdid]
+        response = self.response_dict[cur_cmdid]
+        # Opportunistically refresh the cached mount mode from ANY successful
+        # get_device_state passing through (not just the startup sequence), so
+        # get_event_state's mount block confirms at the first idle-gap poll.
+        if data.get("method") == "get_device_state":
+            mount = ((response.get("result") or {}) if isinstance(response, dict) else {}).get("mount") or {}
+            if "equ_mode" in mount:
+                self.is_EQ_mode = mount["equ_mode"]
+                self.is_EQ_mode_confirmed = True
+        return response
 
     def get_event_state(self, params=None):
         if "scheduler" not in self.event_state:
