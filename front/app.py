@@ -11,7 +11,8 @@ from falcon import (
 )
 from astroquery.simbad import Simbad
 from jinja2 import Environment, FileSystemLoader
-from wsgiref.simple_server import WSGIRequestHandler, make_server
+from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
+from socketserver import ThreadingMixIn
 from pathlib import Path
 import urllib.parse
 import requests
@@ -5034,6 +5035,18 @@ class LoggingWSGIRequestHandler(WSGIRequestHandler):
         logger.debug(f"{datetime.now()} {self.client_address[0]} <- {format % args}")
 
 
+class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
+    """A WSGI server that handles each request in its own thread.
+
+    The stdlib ``wsgiref`` server is single-threaded: a request that blocks on
+    a slow scope call (``get_device_state`` stalls ~10s during imaging) would
+    otherwise freeze every other request. ``daemon_threads`` lets the process
+    exit without waiting on in-flight request threads.
+    """
+
+    daemon_threads = True
+
+
 class GetPlanetCoordinates:
     @staticmethod
     def on_get(req, resp):
@@ -5448,10 +5461,16 @@ class FrontMain:
         app.add_route("/pa_refine", BlindPolarAlignResource())
 
         try:
+            # Serve each request in its own thread. The stdlib wsgiref server
+            # is single-threaded, so any request that blocks on the scope
+            # (e.g. get_device_state, which the firmware stalls for ~10s during
+            # imaging) would freeze the ENTIRE web UI until it returned. A
+            # ThreadingMixIn server keeps the UI responsive under that load.
             self.httpd = make_server(
                 Config.ip_address,
                 Config.uiport,
                 app,
+                server_class=ThreadingWSGIServer,
                 handler_class=LoggingWSGIRequestHandler,
             )
             logger.info(
