@@ -55,7 +55,8 @@
 import sys
 import traceback
 import inspect
-from wsgiref.simple_server import WSGIRequestHandler, make_server
+from wsgiref.simple_server import WSGIRequestHandler, WSGIServer, make_server
+from socketserver import ThreadingMixIn
 
 # -- isort wants the above line to be blank --
 # Controller classes (for routing)
@@ -115,6 +116,20 @@ class LoggingWSGIRequestHandler(WSGIRequestHandler):
         ##TODO## on non-200s, per Wireshark. So crazy!
         # if args[1] != '200':  # Log this only on non-200 responses
         #    log.logger.info(f'{self.client_address[0]} <- {format%args}')
+
+
+class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
+    """A WSGI server that handles each Alpaca request in its own thread.
+
+    The stdlib ``wsgiref`` server is single-threaded, so while one request
+    blocks on a slow scope call (``get_device_state`` stalls ~10s during
+    imaging) every other Alpaca request queues behind it and the callers time
+    out. Threading lets independent requests proceed; concurrent scope writes
+    are serialized by ``Seestar``'s send lock. ``daemon_threads`` lets the
+    process exit without waiting on in-flight request threads.
+    """
+
+    daemon_threads = True
 
 
 # -----------------------
@@ -326,6 +341,7 @@ class DeviceMain:
                 Config.ip_address,
                 Config.port,
                 falc_app,
+                server_class=ThreadingWSGIServer,
                 handler_class=LoggingWSGIRequestHandler,
             )
             logger.info(

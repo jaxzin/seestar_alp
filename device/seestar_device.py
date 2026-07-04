@@ -138,6 +138,11 @@ class Seestar:
             "item_number": 9999,
         }
         self.lock = threading.RLock()
+        # Serializes command-id allocation + socket write in send_message_param.
+        # The Alpaca server is threaded, so concurrent requests can call it at
+        # once; without this two threads could grab the same cmdid or interleave
+        # writes on the single scope socket.
+        self._send_lock = threading.Lock()
         self.is_cur_scheduler_item_working: bool = False
 
         self.event_state: dict[str, Any] = {}
@@ -574,11 +579,15 @@ class Seestar:
 
     def send_message_param(self, data: MessageParams) -> int:
         data = self.transform_message_for_verify(data)
-        cur_cmdid = data.get("id") or self.cmdid
-        data["id"] = cur_cmdid
-        self.cmdid += 1  # can this overflow?  not in JSON...
-        json_data = json.dumps(data)
-        self.send_message(json_data + "\r\n")
+        # Serialize id allocation + the socket write: the Alpaca server is
+        # threaded, so concurrent callers must not share a cmdid or interleave
+        # bytes on the single scope socket.
+        with self._send_lock:
+            cur_cmdid = data.get("id") or self.cmdid
+            data["id"] = cur_cmdid
+            self.cmdid += 1  # can this overflow?  not in JSON...
+            json_data = json.dumps(data)
+            self.send_message(json_data + "\r\n")
         return cur_cmdid
 
     def should_inject_verify(self) -> bool:
