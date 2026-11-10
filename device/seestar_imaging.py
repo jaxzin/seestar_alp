@@ -10,8 +10,8 @@
 import datetime
 import os
 import threading
-from time import sleep, time
-from typing import Optional
+from time import monotonic, sleep, time
+from typing import NamedTuple, Optional
 
 from flask import Flask, Response
 import numpy as np
@@ -43,6 +43,26 @@ from device.config import Config
 #   {  "id" : 21,  "method" : "begin_streaming"}
 # Star:
 #   {  "id" : 23,  "method" : "get_stacked_img"}
+
+#: How long one snapshot request keeps stacked images flowing without the web
+#: live page (whose status loop sets is_live_viewing). Snapshot readers poll far
+#: more often than this, so fetching stops a couple of minutes after the last one.
+SNAPSHOT_INTEREST_SEC = 120
+
+#: Minimum gap between snapshot-triggered stacked-image fetches (see
+#: SeestarImaging.get_snapshot), so polling readers can't flood the scope.
+SNAPSHOT_FETCH_MIN_INTERVAL_SEC = 30
+
+
+class Snapshot(NamedTuple):
+    """One encoded image, shared by every snapshot reader until the next frame."""
+
+    #: The imager's received-frame counter for this image (stable per image).
+    frame: int
+    #: Stack count (stacked + dropped) this image was requested for, or None
+    #: when no stacked image has been requested yet (e.g. a live video frame).
+    stack_frame: Optional[int]
+    jpeg: bytes
 
 
 def table(rows):
@@ -111,6 +131,15 @@ class SeestarImaging:
         self.last_live_view_time = None
         self.last_stacking_frame = None
 
+        # Snapshot readers (GET /<dev>/snapshot.jpg): one cached JPEG per received
+        # frame, so any number of readers cost one encode, and no reader holds a
+        # generator open the way /vid does.
+        self._snapshot_lock = threading.Lock()
+        self._snapshot: Optional[Snapshot] = None
+        self._snapshot_interest_until = 0.0
+        self._last_snapshot_fetch = None
+        self._requested_stack_frame = None
+
     def __repr__(self):
         return f"{type(self).__name__}(host={self.host}, port={self.port})"
 
@@ -124,12 +153,13 @@ class SeestarImaging:
                         self.comm.is_connected()
                         and stacked_frame != self.last_stacking_frame
                         and stacked_frame > 0
-                        and self.is_live_viewing
+                        and (self.is_live_viewing or self._snapshot_wanted())
                     ):
                         self.logger.debug(
                             "Received Stack event.  Fetching stacked image"
                         )  # xxx trace
                         # If we get a stack event, we're going to assume we're stacking!
+                        self._requested_stack_frame = stacked_frame
                         self.request_stacked_image()
                     self.last_stacking_frame = stacked_frame
                 case _:
@@ -141,6 +171,52 @@ class SeestarImaging:
     def request_stacked_image(self):
         with self.lock:
             self.comm.send_message('{"id": 23, "method": "get_stacked_img"}' + "\r\n")
+
+    def _snapshot_wanted(self) -> bool:
+        return monotonic() < self._snapshot_interest_until
+
+    def get_snapshot(self) -> Optional[Snapshot]:
+        """The latest image as one JPEG, encoded once per received frame.
+
+        Each call keeps stacked-image fetching on for SNAPSHOT_INTEREST_SEC, so a
+        polling reader sees the stack grow even if the web live page was never
+        opened. When the held image is not from the current stack (nothing held
+        yet, or an older stack count), one fetch is requested, at most every
+        SNAPSHOT_FETCH_MIN_INTERVAL_SEC. Returns None while no image is held.
+        """
+        now = monotonic()
+        with self._snapshot_lock:
+            self._snapshot_interest_until = now + SNAPSHOT_INTEREST_SEC
+            current_stack = self.last_stacking_frame
+            if (
+                current_stack
+                and self._requested_stack_frame != current_stack
+                and self.comm.is_connected()
+                and (
+                    self._last_snapshot_fetch is None
+                    or now - self._last_snapshot_fetch
+                    >= SNAPSHOT_FETCH_MIN_INTERVAL_SEC
+                )
+            ):
+                self._last_snapshot_fetch = now
+                self._requested_stack_frame = current_stack
+                self.request_stacked_image()
+
+            frame = self.comm.received_frame()
+            if self._snapshot is not None and self._snapshot.frame == frame:
+                return self._snapshot
+            image, _width, _height = self.comm.get_image()
+            if image is None:
+                return None
+            ok, encoded = cv2.imencode(".jpeg", image)
+            if not ok:
+                return None
+            self._snapshot = Snapshot(
+                frame=frame,
+                stack_frame=self._requested_stack_frame,
+                jpeg=encoded.tobytes(),
+            )
+            return self._snapshot
 
     def blank_frame(self, message="Loading", timestamp=False):
         # load the gif image
