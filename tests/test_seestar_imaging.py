@@ -1,3 +1,5 @@
+import threading
+
 import numpy as np
 
 from device import seestar_imaging
@@ -31,6 +33,8 @@ class FakeComm:
         self.set_modes = []
         self.sent = []
         self._streaming = False
+        self.StarProcessors = []
+        self.on_stack_image = None
 
     def start(self):
         return None
@@ -154,6 +158,25 @@ def _stack_reply(imager, value):
     imager.comm.on_stack_image(np.full((2, 2, 3), value, dtype=np.uint16))
 
 
+def _reader(monkeypatch):
+    """An imager with a snapshot reader polling (replies are held for it)."""
+    imager = make_imager(monkeypatch)
+    imager.get_snapshot()
+    return imager
+
+
+def test_stack_replies_are_not_held_without_a_snapshot_reader(monkeypatch):
+    # The web live page alone (is_live_viewing) must not make every user keep
+    # an extra copy of the last stack in memory.
+    imager = make_imager(monkeypatch)
+    imager.is_live_viewing = True
+    _count_stack_requests(monkeypatch, imager)
+    _stack_event(imager, 5)
+    _stack_reply(imager, 50)
+
+    assert imager._stack_image is None
+
+
 def test_snapshot_reader_keeps_stack_fetching_on_without_live_page(monkeypatch):
     imager = make_imager(monkeypatch)
     called = _count_stack_requests(monkeypatch, imager)
@@ -217,7 +240,7 @@ def test_reader_before_the_stack_reply_does_not_fetch_twice(monkeypatch):
 
 def test_snapshot_is_downscaled_to_the_size_cap(monkeypatch):
     monkeypatch.setattr(seestar_imaging, "SNAPSHOT_MAX_PX", 32)
-    imager = make_imager(monkeypatch)
+    imager = _reader(monkeypatch)
     _count_stack_requests(monkeypatch, imager)
     _stack_event(imager, 5)
     imager.comm.on_stack_image(np.full((128, 72, 3), 500, dtype=np.uint16))
@@ -256,7 +279,7 @@ def test_delayed_reply_is_bound_to_the_stack_current_on_arrival(monkeypatch):
     # An older stacked image is held (count 5). A reader asks while the stack
     # is at 6: it gets the held image labelled 5, never relabelled 6, until
     # the reply for 6 actually arrives.
-    imager = make_imager(monkeypatch)
+    imager = _reader(monkeypatch)
     _count_stack_requests(monkeypatch, imager)
     _stack_event(imager, 5)
     _stack_reply(imager, 50)
@@ -274,7 +297,7 @@ def test_delayed_reply_is_bound_to_the_stack_current_on_arrival(monkeypatch):
 def test_preview_frames_between_stack_replies_do_not_change_the_snapshot(
     monkeypatch,
 ):
-    imager = make_imager(monkeypatch)
+    imager = _reader(monkeypatch)
     _count_stack_requests(monkeypatch, imager)
     frame = {"n": 1}
     monkeypatch.setattr(imager.comm, "received_frame", lambda: frame["n"])
@@ -291,7 +314,7 @@ def test_preview_frames_between_stack_replies_do_not_change_the_snapshot(
 def test_new_stack_drops_the_previous_stacks_image(monkeypatch):
     # The count going down means a new stack: the old target's image must not
     # be served for it, even under a matching count.
-    imager = make_imager(monkeypatch)
+    imager = _reader(monkeypatch)
     _count_stack_requests(monkeypatch, imager)
     _stack_event(imager, 287)
     _stack_reply(imager, 50)
@@ -305,7 +328,7 @@ def test_new_stack_drops_the_previous_stacks_image(monkeypatch):
 
 
 def test_snapshot_encodes_once_per_stack_reply(monkeypatch):
-    imager = make_imager(monkeypatch)
+    imager = _reader(monkeypatch)
     _count_stack_requests(monkeypatch, imager)
     encodes = {"n": 0}
     real_imencode = seestar_imaging.cv2.imencode
@@ -326,6 +349,42 @@ def test_snapshot_encodes_once_per_stack_reply(monkeypatch):
     assert again is first
     assert encodes["n"] == 2
     assert newer.jpeg[:2] == b"\xff\xd8"
+
+
+def test_snapshot_etag_is_unique_across_driver_restarts(monkeypatch):
+    tags = []
+    for _ in range(2):
+        imager = _reader(monkeypatch)
+        _stack_event(imager, 5)
+        _stack_reply(imager, 50)
+        tags.append(imager.get_snapshot().etag)
+
+    assert tags[0] != tags[1]
+
+
+def test_new_stack_during_encode_is_not_served_the_old_image(monkeypatch):
+    # The event thread delivers a new stack (count went down) while a reader
+    # encodes. It must not wait on the reader (bounded join, so a lock held
+    # across the encode fails the test instead of hanging it), and the reader
+    # must not serve the previous stack's image.
+    imager = _reader(monkeypatch)
+    _count_stack_requests(monkeypatch, imager)
+    _stack_event(imager, 287)
+    _stack_reply(imager, 50)
+    event_done = []
+
+    class NewStackMidEncode:
+        def process(self, image):
+            thread = threading.Thread(target=_stack_event, args=(imager, 1))
+            thread.start()
+            thread.join(timeout=2)
+            event_done.append(not thread.is_alive())
+            return image
+
+    imager.comm.StarProcessors = [NewStackMidEncode()]
+
+    assert imager.get_snapshot() is None
+    assert event_done == [True]
 
 
 def test_blank_frame_and_build_frame_bytes(monkeypatch):

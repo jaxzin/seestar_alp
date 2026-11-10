@@ -140,21 +140,17 @@ if __name__ == "__main__":
     @cross_origin()
     @app.route("/<dev_num>/snapshot.jpg")
     def snapshot(dev_num):
-        # The latest image as ONE JPEG: the cheap alternative to /vid for readers
-        # that want a still (and for proxies that drop the MJPEG boundary).
-        imager = telescope.get_seestar_imager(int(dev_num))
-        get_snapshot = getattr(imager, "get_snapshot", None)
-        if get_snapshot is None:
-            return Response(status=404)
-        snap = get_snapshot()
-        headers = {"Cache-Control": "no-store"}
+        # The latest STACKED image (stacking only) as one JPEG: a cheap
+        # alternative to /vid for clients that poll for a still.
+        snap = telescope.get_seestar_imager(int(dev_num)).get_snapshot()
+        headers = {"Cache-Control": "no-cache"}
         if snap is None:
             headers["Retry-After"] = "10"
             return Response(status=503, headers=headers)
-        headers["ETag"] = f'"{snap.frame}"'
+        headers["ETag"] = f'"{snap.etag}"'
         if snap.stack_frame is not None:
             headers["X-Seestar-Stack-Frame"] = str(snap.stack_frame)
-        if request.if_none_match.contains(str(snap.frame)):
+        if request.if_none_match.contains_weak(snap.etag):
             return Response(status=304, headers=headers)
         return Response(snap.jpeg, mimetype="image/jpeg", headers=headers)
 

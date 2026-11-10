@@ -10,6 +10,7 @@
 import datetime
 import os
 import threading
+import uuid
 from time import monotonic, sleep, time
 from typing import NamedTuple, Optional
 
@@ -88,6 +89,10 @@ class Snapshot(NamedTuple):
     #: Stack count current when that reply arrived (see _HeldStack).
     stack_frame: Optional[int]
     jpeg: bytes
+    #: HTTP entity tag (unquoted), unique across driver restarts: a bare
+    #: sequence number would repeat, letting a client get a 304 for a
+    #: different image.
+    etag: str
 
 
 def table(rows):
@@ -144,6 +149,8 @@ class SeestarImaging:
         # off as the current stack. Encoded once per reply; no reader holds a
         # generator open the way /vid does.
         self._snapshot_lock = threading.Lock()
+        self._encode_lock = threading.Lock()
+        self._snapshot_epoch = uuid.uuid4().hex[:8]
         self._stack_image: Optional[_HeldStack] = None
         self._stack_seq = 0
         self._snapshot: Optional[Snapshot] = None
@@ -178,31 +185,32 @@ class SeestarImaging:
             match event["Event"]:
                 case "Stack":
                     stacked_frame = event["stacked_frame"] + event["dropped_frame"]
+                    connected = self.comm.is_connected()
                     with self._snapshot_lock:
-                        if (
-                            self.last_stacking_frame is not None
-                            and stacked_frame < self.last_stacking_frame
-                        ):
+                        previous = self.last_stacking_frame
+                        if previous is not None and stacked_frame < previous:
                             # The count went down: a new stack began. Never
                             # serve the previous stack's image as this one.
                             self._stack_image = None
                             self._snapshot = None
-                    # xxx change to just stacked frame _or_ initial request?
-                    if (
-                        self.comm.is_connected()
-                        and stacked_frame != self.last_stacking_frame
-                        and stacked_frame > 0
-                        and (self.is_live_viewing or self._snapshot_wanted())
-                    ):
+                        self.last_stacking_frame = stacked_frame
+                        # xxx change to just stacked frame _or_ initial request?
+                        fetch = (
+                            connected
+                            and stacked_frame != previous
+                            and stacked_frame > 0
+                            and (self.is_live_viewing or self._snapshot_wanted())
+                        )
+                        if fetch:
+                            # A snapshot reader polling before this reply
+                            # arrives must not fetch it again.
+                            self._last_snapshot_fetch = monotonic()
+                    if fetch:
                         self.logger.debug(
                             "Received Stack event.  Fetching stacked image"
                         )  # xxx trace
                         # If we get a stack event, we're going to assume we're stacking!
-                        # A snapshot reader arriving before this reply must not
-                        # fetch again (see get_snapshot).
-                        self._last_snapshot_fetch = monotonic()
                         self.request_stacked_image()
-                    self.last_stacking_frame = stacked_frame
                 case _:
                     pass
         except:
@@ -217,9 +225,12 @@ class SeestarImaging:
         return monotonic() < self._snapshot_interest_until
 
     def _on_stack_image(self, image: np.ndarray) -> None:
-        """A stacked-image reply arrived (imager receive thread): bind it to the
-        stack count current now, so readers never see it under another stack."""
+        """A stacked-image reply arrived (imager receive thread): while a
+        snapshot reader is interested, bind it to the stack count current now,
+        so readers never see it under another stack."""
         with self._snapshot_lock:
+            if not self._snapshot_wanted():
+                return  # nobody reads snapshots: hold no extra image
             self._stack_seq += 1
             self._stack_image = _HeldStack(
                 image=image, stack_frame=self.last_stacking_frame, seq=self._stack_seq
@@ -233,39 +244,58 @@ class SeestarImaging:
         opened. While no reply for the current stack count is held, one fetch is
         requested, at most every SNAPSHOT_FETCH_MIN_INTERVAL_SEC. Returns None
         until a stacked-image reply for the current stack has arrived.
+
+        Neither the fetch (a socket write) nor the stretch + encode runs under
+        the snapshot lock, which the imager receive thread takes for every
+        stacked-image reply; concurrent readers share one encode.
         """
         now = monotonic()
         with self._snapshot_lock:
             self._snapshot_interest_until = now + SNAPSHOT_INTEREST_SEC
             held = self._stack_image
+            cached = self._snapshot
             current_stack = self.last_stacking_frame
-            if (
+            fetch = bool(
                 current_stack
                 and (held is None or held.stack_frame != current_stack)
-                and self.comm.is_connected()
                 and (
                     self._last_snapshot_fetch is None
                     or now - self._last_snapshot_fetch
                     >= SNAPSHOT_FETCH_MIN_INTERVAL_SEC
                 )
-            ):
+            )
+            if fetch:
                 self._last_snapshot_fetch = now
-                self.request_stacked_image()
+        if fetch and self.comm.is_connected():
+            self.request_stacked_image()
 
-            if held is None:
-                return None
-            if self._snapshot is not None and self._snapshot.frame == held.seq:
-                return self._snapshot
+        if held is None:
+            return None
+        if cached is not None and cached.frame == held.seq:
+            return cached
+        with self._encode_lock:
+            with self._snapshot_lock:
+                cached = self._snapshot
+            if cached is not None and cached.frame == held.seq:
+                return cached  # another reader encoded it meanwhile
             image = _fit_within(held.image, SNAPSHOT_MAX_PX)
-            for processor in getattr(self.comm, "StarProcessors", []):
+            for processor in self.comm.StarProcessors:
                 image = processor.process(image)
             ok, encoded = cv2.imencode(".jpeg", image)
             if not ok:
                 return None
-            self._snapshot = Snapshot(
-                frame=held.seq, stack_frame=held.stack_frame, jpeg=encoded.tobytes()
+            snap = Snapshot(
+                frame=held.seq,
+                stack_frame=held.stack_frame,
+                jpeg=encoded.tobytes(),
+                etag=f"{self._snapshot_epoch}-{held.seq}",
             )
-            return self._snapshot
+            with self._snapshot_lock:
+                current = self._stack_image
+                if current is held:
+                    self._snapshot = snap
+            # A new stack (or a newer reply) arrived while encoding.
+            return snap if current is held else None
 
     def blank_frame(self, message="Loading", timestamp=False):
         # load the gif image
