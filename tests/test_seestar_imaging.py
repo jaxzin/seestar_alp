@@ -215,6 +215,21 @@ def test_reader_before_the_stack_reply_does_not_fetch_twice(monkeypatch):
     assert called["stack"] == 2
 
 
+def test_snapshot_is_downscaled_to_the_size_cap(monkeypatch):
+    monkeypatch.setattr(seestar_imaging, "SNAPSHOT_MAX_PX", 32)
+    imager = make_imager(monkeypatch)
+    _count_stack_requests(monkeypatch, imager)
+    _stack_event(imager, 5)
+    imager.comm.on_stack_image(np.full((128, 72, 3), 500, dtype=np.uint16))
+
+    jpeg = imager.get_snapshot().jpeg
+    decoded = seestar_imaging.cv2.imdecode(
+        np.frombuffer(jpeg, dtype=np.uint8), seestar_imaging.cv2.IMREAD_COLOR
+    )
+
+    assert decoded.shape[:2] == (32, 18)
+
+
 def test_snapshot_does_not_fetch_without_a_stack(monkeypatch):
     imager = make_imager(monkeypatch)
     called = _count_stack_requests(monkeypatch, imager)
