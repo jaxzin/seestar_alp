@@ -54,13 +54,23 @@ SNAPSHOT_INTEREST_SEC = 120
 SNAPSHOT_FETCH_MIN_INTERVAL_SEC = 30
 
 
-class Snapshot(NamedTuple):
-    """One encoded image, shared by every snapshot reader until the next frame."""
+class _HeldStack(NamedTuple):
+    """The latest stacked-image reply, bound to its stack when it arrived."""
 
-    #: The imager's received-frame counter for this image (stable per image).
+    image: np.ndarray
+    #: Stack count (stacked + dropped) current when the reply arrived, or None
+    #: when no Stack event had been seen yet.
+    stack_frame: Optional[int]
+    #: Sequence number of the reply (one per stacked-image reply).
+    seq: int
+
+
+class Snapshot(NamedTuple):
+    """One encoded stacked image, shared by every reader until the next reply."""
+
+    #: Sequence number of the stacked-image reply it encodes (stable per image).
     frame: int
-    #: Stack count (stacked + dropped) this image was requested for, or None
-    #: when no stacked image has been requested yet (e.g. a live video frame).
+    #: Stack count current when that reply arrived (see _HeldStack).
     stack_frame: Optional[int]
     jpeg: bytes
 
@@ -112,6 +122,19 @@ class SeestarImaging:
         self.eventbus = signal(f"{device_name}.eventbus")
         self.eventbus.connect(self.event_handler)
         self.BOUNDARY = b"\r\n--frame\r\n"
+
+        # Snapshot readers (GET /<dev>/snapshot.jpg). Only stacked-image REPLIES
+        # are served, each bound at receipt to the stack count current then, so
+        # a preview/stream frame or a previous stack's image is never passed
+        # off as the current stack. Encoded once per reply; no reader holds a
+        # generator open the way /vid does.
+        self._snapshot_lock = threading.Lock()
+        self._stack_image: Optional[_HeldStack] = None
+        self._stack_seq = 0
+        self._snapshot: Optional[Snapshot] = None
+        self._snapshot_interest_until = 0.0
+        self._last_snapshot_fetch = None
+
         # self.trace = MessageTrace(self.device_num, self.port, False)
         self.comm = SeestarImagerProtocol(
             logger=logger,
@@ -120,6 +143,7 @@ class SeestarImaging:
             host=host,
             port=port,
         )
+        self.comm.on_stack_image = self._on_stack_image
         self.comm.start()
 
         # Star imaging metrics
@@ -131,15 +155,6 @@ class SeestarImaging:
         self.last_live_view_time = None
         self.last_stacking_frame = None
 
-        # Snapshot readers (GET /<dev>/snapshot.jpg): one cached JPEG per received
-        # frame, so any number of readers cost one encode, and no reader holds a
-        # generator open the way /vid does.
-        self._snapshot_lock = threading.Lock()
-        self._snapshot: Optional[Snapshot] = None
-        self._snapshot_interest_until = 0.0
-        self._last_snapshot_fetch = None
-        self._requested_stack_frame = None
-
     def __repr__(self):
         return f"{type(self).__name__}(host={self.host}, port={self.port})"
 
@@ -148,6 +163,15 @@ class SeestarImaging:
             match event["Event"]:
                 case "Stack":
                     stacked_frame = event["stacked_frame"] + event["dropped_frame"]
+                    with self._snapshot_lock:
+                        if (
+                            self.last_stacking_frame is not None
+                            and stacked_frame < self.last_stacking_frame
+                        ):
+                            # The count went down: a new stack began. Never
+                            # serve the previous stack's image as this one.
+                            self._stack_image = None
+                            self._snapshot = None
                     # xxx change to just stacked frame _or_ initial request?
                     if (
                         self.comm.is_connected()
@@ -159,7 +183,6 @@ class SeestarImaging:
                             "Received Stack event.  Fetching stacked image"
                         )  # xxx trace
                         # If we get a stack event, we're going to assume we're stacking!
-                        self._requested_stack_frame = stacked_frame
                         self.request_stacked_image()
                     self.last_stacking_frame = stacked_frame
                 case _:
@@ -175,22 +198,32 @@ class SeestarImaging:
     def _snapshot_wanted(self) -> bool:
         return monotonic() < self._snapshot_interest_until
 
+    def _on_stack_image(self, image: np.ndarray) -> None:
+        """A stacked-image reply arrived (imager receive thread): bind it to the
+        stack count current now, so readers never see it under another stack."""
+        with self._snapshot_lock:
+            self._stack_seq += 1
+            self._stack_image = _HeldStack(
+                image=image, stack_frame=self.last_stacking_frame, seq=self._stack_seq
+            )
+
     def get_snapshot(self) -> Optional[Snapshot]:
-        """The latest image as one JPEG, encoded once per received frame.
+        """The latest stacked-image reply as one JPEG, encoded once per reply.
 
         Each call keeps stacked-image fetching on for SNAPSHOT_INTEREST_SEC, so a
         polling reader sees the stack grow even if the web live page was never
-        opened. When the held image is not from the current stack (nothing held
-        yet, or an older stack count), one fetch is requested, at most every
-        SNAPSHOT_FETCH_MIN_INTERVAL_SEC. Returns None while no image is held.
+        opened. While no reply for the current stack count is held, one fetch is
+        requested, at most every SNAPSHOT_FETCH_MIN_INTERVAL_SEC. Returns None
+        until a stacked-image reply for the current stack has arrived.
         """
         now = monotonic()
         with self._snapshot_lock:
             self._snapshot_interest_until = now + SNAPSHOT_INTEREST_SEC
+            held = self._stack_image
             current_stack = self.last_stacking_frame
             if (
                 current_stack
-                and self._requested_stack_frame != current_stack
+                and (held is None or held.stack_frame != current_stack)
                 and self.comm.is_connected()
                 and (
                     self._last_snapshot_fetch is None
@@ -199,22 +232,20 @@ class SeestarImaging:
                 )
             ):
                 self._last_snapshot_fetch = now
-                self._requested_stack_frame = current_stack
                 self.request_stacked_image()
 
-            frame = self.comm.received_frame()
-            if self._snapshot is not None and self._snapshot.frame == frame:
-                return self._snapshot
-            image, _width, _height = self.comm.get_image()
-            if image is None:
+            if held is None:
                 return None
+            if self._snapshot is not None and self._snapshot.frame == held.seq:
+                return self._snapshot
+            image = held.image
+            for processor in getattr(self.comm, "StarProcessors", []):
+                image = processor.process(image)
             ok, encoded = cv2.imencode(".jpeg", image)
             if not ok:
                 return None
             self._snapshot = Snapshot(
-                frame=frame,
-                stack_frame=self._requested_stack_frame,
-                jpeg=encoded.tobytes(),
+                frame=held.seq, stack_frame=held.stack_frame, jpeg=encoded.tobytes()
             )
             return self._snapshot
 

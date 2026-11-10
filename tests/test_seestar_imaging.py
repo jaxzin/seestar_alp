@@ -143,15 +143,24 @@ def test_stack_event_without_live_page_or_snapshot_reader_does_not_fetch(
     assert imager.last_stacking_frame == 3
 
 
+def _stack_event(imager, stacked, dropped=0):
+    imager.event_handler(
+        {"Event": "Stack", "stacked_frame": stacked, "dropped_frame": dropped}
+    )
+
+
+def _stack_reply(imager, value):
+    """A stacked-image reply arriving on the imaging socket (receive thread)."""
+    imager.comm.on_stack_image(np.full((2, 2, 3), value, dtype=np.uint16))
+
+
 def test_snapshot_reader_keeps_stack_fetching_on_without_live_page(monkeypatch):
     imager = make_imager(monkeypatch)
     called = _count_stack_requests(monkeypatch, imager)
-    frame = {"n": 1}
-    monkeypatch.setattr(imager.comm, "received_frame", lambda: frame["n"])
     imager.get_snapshot()
 
-    imager.event_handler({"Event": "Stack", "stacked_frame": 3, "dropped_frame": 1})
-    frame["n"] = 2  # the requested stacked image arrives
+    _stack_event(imager, 3, 1)
+    _stack_reply(imager, 100)
 
     assert called["stack"] == 1
     assert imager.get_snapshot().stack_frame == 4
@@ -165,7 +174,7 @@ def test_snapshot_interest_expires(monkeypatch):
     imager.get_snapshot()
 
     clock["now"] += seestar_imaging.SNAPSHOT_INTEREST_SEC + 1
-    imager.event_handler({"Event": "Stack", "stacked_frame": 3, "dropped_frame": 0})
+    _stack_event(imager, 3)
 
     assert called["stack"] == 0
 
@@ -175,18 +184,18 @@ def test_snapshot_requests_current_stack_once_per_interval(monkeypatch):
     monkeypatch.setattr(seestar_imaging, "monotonic", lambda: clock["now"])
     imager = make_imager(monkeypatch)
     # A stack was already running before anyone asked for an image.
-    imager.event_handler({"Event": "Stack", "stacked_frame": 7, "dropped_frame": 0})
+    _stack_event(imager, 7)
     called = _count_stack_requests(monkeypatch, imager)
 
     imager.get_snapshot()
     imager.get_snapshot()
     assert called["stack"] == 1
 
-    # The next sub-frame is fetched from its Stack event, not by the reader.
-    imager.event_handler({"Event": "Stack", "stacked_frame": 8, "dropped_frame": 0})
+    # The reply arrives: nothing more to fetch for this count.
+    _stack_reply(imager, 100)
     clock["now"] += seestar_imaging.SNAPSHOT_FETCH_MIN_INTERVAL_SEC + 1
     imager.get_snapshot()
-    assert called["stack"] == 2
+    assert called["stack"] == 1
 
 
 def test_snapshot_does_not_fetch_without_a_stack(monkeypatch):
@@ -198,35 +207,93 @@ def test_snapshot_does_not_fetch_without_a_stack(monkeypatch):
     assert called["stack"] == 0
 
 
-def test_snapshot_encodes_once_per_received_frame(monkeypatch):
+def test_snapshot_never_serves_a_non_stack_image(monkeypatch):
+    # The imager holds a frame (preview/stream, or anything from before), but
+    # no stacked-image reply has arrived: nothing is served, even though a
+    # fetch for the current stack was just requested.
     imager = make_imager(monkeypatch)
+    called = _count_stack_requests(monkeypatch, imager)
+    _stack_event(imager, 5)
+
+    assert imager.comm.get_image()[0] is not None
+    assert imager.get_snapshot() is None
+    assert called["stack"] == 1
+
+
+def test_delayed_reply_is_bound_to_the_stack_current_on_arrival(monkeypatch):
+    # An older stacked image is held (count 5). A reader asks while the stack
+    # is at 6: it gets the held image labelled 5, never relabelled 6, until
+    # the reply for 6 actually arrives.
+    imager = make_imager(monkeypatch)
+    _count_stack_requests(monkeypatch, imager)
+    _stack_event(imager, 5)
+    _stack_reply(imager, 50)
+    _stack_event(imager, 6)
+
+    pending = imager.get_snapshot()
+    assert pending.stack_frame == 5
+
+    _stack_reply(imager, 60)
+    arrived = imager.get_snapshot()
+    assert arrived.stack_frame == 6
+    assert arrived.frame != pending.frame
+
+
+def test_preview_frames_between_stack_replies_do_not_change_the_snapshot(
+    monkeypatch,
+):
+    imager = make_imager(monkeypatch)
+    _count_stack_requests(monkeypatch, imager)
     frame = {"n": 1}
-    encodes = {"n": 0}
     monkeypatch.setattr(imager.comm, "received_frame", lambda: frame["n"])
-    real_get_image = imager.comm.get_image
+    _stack_event(imager, 5)
+    _stack_reply(imager, 50)
+    first = imager.get_snapshot()
 
-    def counting_get_image():
+    frame["n"] += 3  # preview frames arrive on the imaging socket
+    again = imager.get_snapshot()
+
+    assert again is first  # same stack reply, not re-encoded or relabelled
+
+
+def test_new_stack_drops_the_previous_stacks_image(monkeypatch):
+    # The count going down means a new stack: the old target's image must not
+    # be served for it, even under a matching count.
+    imager = make_imager(monkeypatch)
+    _count_stack_requests(monkeypatch, imager)
+    _stack_event(imager, 287)
+    _stack_reply(imager, 50)
+    assert imager.get_snapshot().stack_frame == 287
+
+    _stack_event(imager, 1)
+
+    assert imager.get_snapshot() is None
+    _stack_reply(imager, 60)
+    assert imager.get_snapshot().stack_frame == 1
+
+
+def test_snapshot_encodes_once_per_stack_reply(monkeypatch):
+    imager = make_imager(monkeypatch)
+    _count_stack_requests(monkeypatch, imager)
+    encodes = {"n": 0}
+    real_imencode = seestar_imaging.cv2.imencode
+
+    def counting_imencode(ext, image):
         encodes["n"] += 1
-        return real_get_image()
+        return real_imencode(ext, image)
 
-    monkeypatch.setattr(imager.comm, "get_image", counting_get_image)
+    monkeypatch.setattr(seestar_imaging.cv2, "imencode", counting_imencode)
+    _stack_event(imager, 5)
+    _stack_reply(imager, 50)
 
     first = imager.get_snapshot()
     again = imager.get_snapshot()
-    frame["n"] = 2
+    _stack_reply(imager, 60)
     newer = imager.get_snapshot()
 
     assert again is first
     assert encodes["n"] == 2
-    assert newer.frame == 2
     assert newer.jpeg[:2] == b"\xff\xd8"
-
-
-def test_snapshot_is_none_without_an_image(monkeypatch):
-    imager = make_imager(monkeypatch)
-    monkeypatch.setattr(imager.comm, "get_image", lambda: (None, None, None))
-
-    assert imager.get_snapshot() is None
 
 
 def test_blank_frame_and_build_frame_bytes(monkeypatch):
