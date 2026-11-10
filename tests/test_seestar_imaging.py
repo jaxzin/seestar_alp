@@ -198,6 +198,23 @@ def test_snapshot_requests_current_stack_once_per_interval(monkeypatch):
     assert called["stack"] == 1
 
 
+def test_reader_before_the_stack_reply_does_not_fetch_twice(monkeypatch):
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(seestar_imaging, "monotonic", lambda: clock["now"])
+    imager = make_imager(monkeypatch)
+    called = _count_stack_requests(monkeypatch, imager)
+    imager.get_snapshot()  # a reader is interested
+
+    _stack_event(imager, 8)  # fetches the new sub-frame's stack
+    imager.get_snapshot()  # polls before that reply arrives
+    assert called["stack"] == 1
+
+    # The reply never came: the reader retries after the interval.
+    clock["now"] += seestar_imaging.SNAPSHOT_FETCH_MIN_INTERVAL_SEC + 1
+    imager.get_snapshot()
+    assert called["stack"] == 2
+
+
 def test_snapshot_does_not_fetch_without_a_stack(monkeypatch):
     imager = make_imager(monkeypatch)
     called = _count_stack_requests(monkeypatch, imager)

@@ -53,6 +53,21 @@ SNAPSHOT_INTEREST_SEC = 120
 #: SeestarImaging.get_snapshot), so polling readers can't flood the scope.
 SNAPSHOT_FETCH_MIN_INTERVAL_SEC = 30
 
+#: Longest side of a snapshot, in pixels. The stack is downscaled BEFORE the
+#: stretch: stretching the full 2160x3840 stack takes ~500 MB at its peak,
+#: while snapshot readers (dashboards, the ha-seestar bridge) display ~1280 px.
+SNAPSHOT_MAX_PX = 1280
+
+
+def _fit_within(image: np.ndarray, max_px: int) -> np.ndarray:
+    """``image`` scaled down (area-averaged) so its longest side is ``max_px``."""
+    height, width = image.shape[:2]
+    scale = max_px / max(height, width)
+    if scale >= 1:
+        return image
+    size = (max(1, round(width * scale)), max(1, round(height * scale)))
+    return cv2.resize(image, size, interpolation=cv2.INTER_AREA)
+
 
 class _HeldStack(NamedTuple):
     """The latest stacked-image reply, bound to its stack when it arrived."""
@@ -183,6 +198,9 @@ class SeestarImaging:
                             "Received Stack event.  Fetching stacked image"
                         )  # xxx trace
                         # If we get a stack event, we're going to assume we're stacking!
+                        # A snapshot reader arriving before this reply must not
+                        # fetch again (see get_snapshot).
+                        self._last_snapshot_fetch = monotonic()
                         self.request_stacked_image()
                     self.last_stacking_frame = stacked_frame
                 case _:
@@ -238,7 +256,7 @@ class SeestarImaging:
                 return None
             if self._snapshot is not None and self._snapshot.frame == held.seq:
                 return self._snapshot
-            image = held.image
+            image = _fit_within(held.image, SNAPSHOT_MAX_PX)
             for processor in getattr(self.comm, "StarProcessors", []):
                 image = processor.process(image)
             ok, encoded = cv2.imencode(".jpeg", image)
